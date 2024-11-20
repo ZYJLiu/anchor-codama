@@ -94,6 +94,7 @@ export function ConnectWalletMenu({ children }: Props) {
                   account={selectedWalletAccount}
                   width="18"
                   height="18"
+                  alt=""
                 />
                 <span className="ml-2">
                   {selectedWalletAccount.address.slice(0, 8)}

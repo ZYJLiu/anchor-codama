@@ -1,6 +1,6 @@
 "use client";
 import { mainnet, testnet } from "@solana/web3.js";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 
 import { ChainContext, DEFAULT_CHAIN_CONFIG } from "./ChainContext";
 
@@ -11,9 +11,16 @@ export function ChainContextProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const [chain, setChain] = useState(
-    () => localStorage.getItem(STORAGE_KEY) ?? "solana:devnet"
-  );
+  const [chain, setChain] = useState<string>("solana:devnet");
+
+  // Load the saved chain from localStorage when component mounts (client-side only)
+  useEffect(() => {
+    const savedChain = localStorage.getItem(STORAGE_KEY);
+    if (savedChain) {
+      setChain(savedChain);
+    }
+  }, []);
+
   const contextValue = useMemo<ChainContext>(() => {
     switch (chain) {
       case "solana:mainnet":
@@ -40,19 +47,24 @@ export function ChainContextProvider({
       case "solana:devnet":
       default:
         if (chain !== "solana:devnet") {
-          localStorage.removeItem(STORAGE_KEY);
+          if (typeof window !== "undefined") {
+            localStorage.removeItem(STORAGE_KEY);
+          }
           console.error(`Unrecognized chain \`${chain}\``);
         }
         return DEFAULT_CHAIN_CONFIG;
     }
   }, [chain]);
+
   return (
     <ChainContext.Provider
       value={useMemo(
         () => ({
           ...contextValue,
           setChain(chain) {
-            localStorage.setItem(STORAGE_KEY, chain);
+            if (typeof window !== "undefined") {
+              localStorage.setItem(STORAGE_KEY, chain);
+            }
             setChain(chain);
           },
         }),

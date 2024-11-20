@@ -3,14 +3,15 @@ import {
   uiWalletAccountBelongsToUiWallet,
   useWallets,
 } from "@wallet-standard/react";
+import Image from "next/image";
 import React from "react";
 
-type Props = React.ComponentProps<"img"> &
+type Props = Omit<React.ComponentProps<typeof Image>, "src"> &
   Readonly<{
     account: UiWalletAccount;
   }>;
 
-export function WalletAccountIcon({ account, ...imgProps }: Props) {
+export function WalletAccountIcon({ account, ...imageProps }: Props) {
   const wallets = useWallets();
   let icon;
   if (account.icon) {
@@ -23,5 +24,5 @@ export function WalletAccountIcon({ account, ...imgProps }: Props) {
       }
     }
   }
-  return icon ? <img src={icon} {...imgProps} /> : null;
+  return icon ? <Image src={icon} {...imageProps} alt="" /> : null;
 }

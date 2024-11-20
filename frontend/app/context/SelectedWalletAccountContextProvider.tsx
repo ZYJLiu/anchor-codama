@@ -21,6 +21,7 @@ let wasSetterInvoked = false;
 function getSavedWalletAccount(
   wallets: readonly UiWallet[]
 ): UiWalletAccount | undefined {
+  if (typeof window === "undefined") return undefined;
   if (wasSetterInvoked) {
     // After the user makes an explicit choice of wallet, stop trying to auto-select the
     // saved wallet, if and when it appears.
@@ -74,10 +75,12 @@ export function SelectedWalletAccountContextProvider({
       const accountKey = nextWalletAccount
         ? getUiWalletAccountStorageKey(nextWalletAccount)
         : undefined;
-      if (accountKey) {
-        localStorage.setItem(STORAGE_KEY, accountKey);
-      } else {
-        localStorage.removeItem(STORAGE_KEY);
+      if (typeof window !== "undefined") {
+        if (accountKey) {
+          localStorage.setItem(STORAGE_KEY, accountKey);
+        } else {
+          localStorage.removeItem(STORAGE_KEY);
+        }
       }
       return nextWalletAccount;
     });

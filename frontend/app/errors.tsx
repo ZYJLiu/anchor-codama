@@ -39,7 +39,7 @@ export function getErrorMessage(
     return (
       <div className="flex flex-col gap-4">
         <p>
-          The wallet '{err.context.walletName}' (
+          The wallet &apos;{err.context.walletName}&apos; (
           {err.context.supportedChains.sort().map((chain, ii, { length }) => (
             <React.Fragment key={chain}>
               <InlineCode>{chain}</InlineCode>
