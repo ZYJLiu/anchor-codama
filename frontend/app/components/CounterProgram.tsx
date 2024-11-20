@@ -12,6 +12,7 @@ import {
   setTransactionMessageLifetimeUsingBlockhash,
   signAndSendTransactionMessageWithSigners,
   Signature,
+  SignatureBytes,
 } from "@solana/web3.js";
 import { createRecentSignatureConfirmationPromiseFactory } from "@solana/transaction-confirmation";
 import { type UiWalletAccount } from "@wallet-standard/react";
@@ -47,8 +48,8 @@ export function CounterProgram({ account }: Props) {
     currentChain
   );
 
-  const handleButtonClick = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Send transaction to create a new counter
+  const handleCreateCounter = async (): Promise<SignatureBytes> => {
     setError(NO_ERROR);
     setIsSendingTransaction(true);
     try {
@@ -56,45 +57,20 @@ export function CounterProgram({ account }: Props) {
         .getLatestBlockhash({ commitment: "confirmed" })
         .send();
 
-      let message;
-      let newCounterAddress = counterAddress;
-      if (!counterAddress) {
-        // Create counter
-        const counter = await generateKeyPairSigner();
-        message = pipe(
-          createTransactionMessage({ version: 0 }),
-          (m) =>
-            setTransactionMessageFeePayerSigner(transactionSendingSigner, m),
-          (m) =>
-            setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, m),
-          (m) =>
-            appendTransactionMessageInstruction(
-              getInitializeInstruction({
-                payer: transactionSendingSigner,
-                counter,
-              }),
-              m
-            )
-        );
-        newCounterAddress = counter.address;
-        setCounterAddress(counter.address);
-      } else {
-        // Increment counter
-        message = pipe(
-          createTransactionMessage({ version: 0 }),
-          (m) =>
-            setTransactionMessageFeePayerSigner(transactionSendingSigner, m),
-          (m) =>
-            setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, m),
-          (m) =>
-            appendTransactionMessageInstruction(
-              getIncrementInstruction({
-                counter: counterAddress,
-              }),
-              m
-            )
-        );
-      }
+      const newCounter = await generateKeyPairSigner();
+      const message = pipe(
+        createTransactionMessage({ version: 0 }),
+        (m) => setTransactionMessageFeePayerSigner(transactionSendingSigner, m),
+        (m) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, m),
+        (m) =>
+          appendTransactionMessageInstruction(
+            getInitializeInstruction({
+              payer: transactionSendingSigner,
+              counter: newCounter,
+            }),
+            m
+          )
+      );
 
       assertIsTransactionMessageWithSingleSendingSigner(message);
       const signature = await signAndSendTransactionMessageWithSigners(message);
@@ -111,35 +87,93 @@ export function CounterProgram({ account }: Props) {
         signature: getBase58Decoder().decode(signature) as Signature,
       });
 
-      // Show success toast
-      const decodedSignature = getBase58Decoder().decode(signature);
-      toast({
-        title: "Transaction Successful!",
-        description: (
-          <div className="flex flex-col gap-2">
-            <a
-              href={`https://explorer.solana.com/tx/${decodedSignature}?cluster=${solanaExplorerClusterName}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-mono text-sm break-all text-primary hover:underline"
-            >
-              View on Explorer: {decodedSignature}
-            </a>
-          </div>
-        ),
-      });
+      setCounterAddress(newCounter.address);
+      const counterAccount = await fetchCounter(rpc, newCounter.address);
+      setCounterValue(Number(counterAccount.data.count));
 
-      // Fetch counter value
-      if (newCounterAddress) {
-        const counterAccount = await fetchCounter(rpc, newCounterAddress);
-        setCounterValue(Number(counterAccount.data.count));
-      }
+      return signature;
     } catch (e) {
       console.error(e);
       setError(e);
+      throw e;
     } finally {
       setIsSendingTransaction(false);
     }
+  };
+
+  // Send transaction to increment the counter
+  const handleIncrementCounter = async (): Promise<SignatureBytes> => {
+    setError(NO_ERROR);
+    setIsSendingTransaction(true);
+    try {
+      const { value: latestBlockhash } = await rpc
+        .getLatestBlockhash({ commitment: "confirmed" })
+        .send();
+
+      const message = pipe(
+        createTransactionMessage({ version: 0 }),
+        (m) => setTransactionMessageFeePayerSigner(transactionSendingSigner, m),
+        (m) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, m),
+        (m) =>
+          appendTransactionMessageInstruction(
+            getIncrementInstruction({
+              counter: counterAddress!,
+            }),
+            m
+          )
+      );
+
+      assertIsTransactionMessageWithSingleSendingSigner(message);
+      const signature = await signAndSendTransactionMessageWithSigners(message);
+
+      const getRecentSignatureConfirmationPromise =
+        createRecentSignatureConfirmationPromiseFactory({
+          rpc,
+          rpcSubscriptions,
+        });
+
+      await getRecentSignatureConfirmationPromise({
+        abortSignal: new AbortController().signal,
+        commitment: "confirmed",
+        signature: getBase58Decoder().decode(signature) as Signature,
+      });
+
+      const counterAccount = await fetchCounter(rpc, counterAddress!);
+      setCounterValue(Number(counterAccount.data.count));
+
+      return signature;
+    } catch (e) {
+      console.error(e);
+      setError(e);
+      throw e;
+    } finally {
+      setIsSendingTransaction(false);
+    }
+  };
+
+  const handleButtonClick = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const signature = !counterAddress
+      ? await handleCreateCounter()
+      : await handleIncrementCounter();
+
+    const decodedSignature = getBase58Decoder().decode(signature);
+    toast({
+      title: "Transaction Confirmed",
+      description: (
+        <div className="flex flex-col gap-2">
+          <a
+            href={`https://explorer.solana.com/tx/${decodedSignature}?cluster=${solanaExplorerClusterName}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-mono text-sm break-all text-primary hover:underline"
+          >
+            View on Explorer: {decodedSignature}
+          </a>
+        </div>
+      ),
+    });
   };
 
   return (
